@@ -3,57 +3,48 @@ pipeline {
         label 'general'
     }
 
-    triggers {
-        githubPush()
+    parameters {
+        string(name: 'SERVICE_NAME', defaultValue: '', description: '')
+        string(name: 'IMAGE_FULL_NAME_PARAM', defaultValue: '', description: '')
     }
-
-    options {
-        timeout(time: 10, unit: 'MINUTES')  // discard the build after 10 minutes of running
-        timestamps()  // display timestamp in console output
-    }
-
-    environment {
-        IMAGE_TAG = "v1.0.$BUILD_NUMBER"
-        IMAGE_BASE_NAME = "netflix-movie-catalog-prod"
-
-        DOCKER_CREDS = credentials('dockerhub')
-        DOCKER_USERNAME = "${DOCKER_CREDS_USR}"  // The _USR suffix added to access the username value
-        DOCKER_PASS = "${DOCKER_CREDS_PSW}"      // The _PSW suffix added to access the password value
-    }
-
 
     stages {
-        stage('Docker setup') {
+        stage('Git setup') {
+            steps {
+                sh 'git checkout -b main || git checkout main'
+            }
+        }
+        stage('Update YAML manifests') {
             steps {
                 sh '''
-                  docker login -u $DOCKER_USERNAME -p $DOCKER_PASS
+                cd k8s/$SERVICE_NAME
+                sed -i "s|image: .*|image: ${IMAGE_FULL_NAME_PARAM}|" deployment.yaml
+                git add deployment.yaml
+                git commit -m "Jenkins deploy $SERVICE_NAME $IMAGE_FULL_NAME_PARAM"
                 '''
             }
         }
-
-        stage('Build app container') {
+        stage('Git push') {
             steps {
-                sh '''
-                    IMAGE_FULL_NAME=$DOCKER_USERNAME/$IMAGE_BASE_NAME:$IMAGE_TAG
-                    docker build -t $IMAGE_FULL_NAME .
-                    docker push $IMAGE_FULL_NAME
-                '''
+                // Use SSH credentials from Jenkins
+                withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh-key', keyVariable: 'SSH_KEY')]) {
+                    script {
+                        // Ensure the SSH agent is running
+                        sh 'eval "$(ssh-agent -s)"'
+                        sh 'ssh-add <(echo "$SSH_KEY")'
+
+                        // Now push using SSH
+                        sh '''
+                        git push git@github.com:LoayKewan/NetflixInfra2.git main
+                        '''
+                    }
+                }
             }
         }
-
-
-
-
-
-        stage('Trigger Deploy') {
-            steps {
-                build job: 'NetflixDeployProd', wait: false, parameters: [
-                    string(name: 'SERVICE_NAME', value: "NetflixMovieCatalog"),
-                    string(name: 'IMAGE_FULL_NAME_PARAM', value: "$DOCKER_USERNAME/$IMAGE_BASE_NAME:$IMAGE_TAG")
-
-
-                ]
-            }
+    }
+    post {
+        cleanup {
+            cleanWs()
         }
     }
 }
