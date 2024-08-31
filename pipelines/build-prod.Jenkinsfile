@@ -22,6 +22,7 @@ pipeline {
     }
 
 
+
     stages {
         stage('Docker setup') {
             steps {
