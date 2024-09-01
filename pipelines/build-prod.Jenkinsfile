@@ -7,6 +7,7 @@ pipeline {
         githubPush()
     }
 
+
     options {
         timeout(time: 10, unit: 'MINUTES')  // discard the build after 10 minutes of running
         timestamps()  // display timestamp in console output
@@ -20,6 +21,7 @@ pipeline {
         DOCKER_USERNAME = "${DOCKER_CREDS_USR}"  // The _USR suffix added to access the username value
         DOCKER_PASS = "${DOCKER_CREDS_PSW}"      // The _PSW suffix added to access the password value
     }
+
 
 
     stages {
