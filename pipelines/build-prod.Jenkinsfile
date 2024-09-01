@@ -21,7 +21,6 @@ pipeline {
         DOCKER_PASS = "${DOCKER_CREDS_PSW}"      // The _PSW suffix added to access the password value
     }
 
-
     stages {
         stage('Docker setup') {
             steps {
